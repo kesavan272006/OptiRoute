@@ -12,17 +12,24 @@ load_dotenv()
 class GeminiHospitalRankingService:
     def __init__(self):
         """Initialize the Gemini service with API key from environment"""
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        if not self.api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
-        
-        # Initialize the Gemini model
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-pro",
-            google_api_key=self.api_key,
-            temperature=0.3,  # Lower temperature for more consistent, analytical responses
-            max_tokens=2048
-        )
+        try:
+            self.api_key = os.getenv("GEMINI_API_KEY")
+            if not self.api_key:
+                print("Warning: GEMINI_API_KEY not found in environment variables")
+                self.llm = None
+                return
+            
+            # Initialize the Gemini model
+            self.llm = ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash",  # Use a more stable model
+                google_api_key=self.api_key,
+                temperature=0.3,
+                max_tokens=2048
+            )
+            print("Gemini service initialized successfully")
+        except Exception as e:
+            print(f"Error initializing Gemini service: {e}")
+            self.llm = None
 
     def create_ranking_prompt(self, 
                             ml_rankings: List[Dict[str, Any]], 
@@ -134,6 +141,10 @@ Analyze carefully and provide the most clinically sound and operationally optima
         Returns:
             Enhanced ranking with LLM analysis
         """
+        # If Gemini service is not available, return fallback response
+        if self.llm is None:
+            return self._create_error_response(ml_rankings, "Gemini LLM service not available")
+            
         try:
             # Create the prompt
             prompt = self.create_ranking_prompt(
@@ -271,5 +282,46 @@ Analyze carefully and provide the most clinically sound and operationally optima
         from datetime import datetime
         return datetime.now().isoformat()
 
-# Global instance
-gemini_service = GeminiHospitalRankingService()
+# Create a safe service instance
+try:
+    gemini_service = GeminiHospitalRankingService()
+except Exception as e:
+    print(f"Failed to create Gemini service: {e}")
+    # Create a dummy service that always returns fallback responses
+    class FallbackGeminiService:
+        def __init__(self):
+            self.llm = None
+        
+        async def get_intelligent_hospital_ranking(self, ml_rankings, live_hospital_data, ambulance_location, patient_info):
+            return {
+                "final_ranking": [
+                    {
+                        "rank": i + 1,
+                        "hospital_name": hospital.get('hospital_name', f'Hospital {i+1}'),
+                        "hospital_id": hospital.get('hospital_id', 'unknown'),
+                        "distance_km": hospital.get('distance_km', 0),
+                        "ml_suitability_score": hospital.get('suitability_score', 0),
+                        "real_time_score": 0.7,
+                        "final_score": hospital.get('suitability_score', 0),
+                        "reasoning": f"ML model recommendation. Distance: {hospital.get('distance_km', 0)}km",
+                        "estimated_wait_time_minutes": max(10, int(hospital.get('distance_km', 0) * 2)),
+                        "bed_availability_status": "Available",
+                        "icu_availability": "Available",
+                        "specialist_match": "Good",
+                        "risk_level": "Medium"
+                    }
+                    for i, hospital in enumerate(ml_rankings[:5])
+                ],
+                "critical_factors": ["ML model predictions", "Distance optimization"],
+                "recommendations": {
+                    "primary_choice": ml_rankings[0]['hospital_name'] if ml_rankings else "No hospitals",
+                    "backup_plan": "Contact emergency services",
+                    "transport_notes": "Standard transport",
+                    "hospital_prep": "Standard preparation"
+                },
+                "overall_assessment": "Fallback mode - ML predictions only",
+                "analysis_timestamp": __import__('datetime').datetime.now().isoformat(),
+                "model_used": "fallback-service"
+            }
+    
+    gemini_service = FallbackGeminiService()

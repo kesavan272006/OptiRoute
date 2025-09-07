@@ -416,6 +416,62 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
+// Shelter Allocation API
+export const shelterAPI = {
+  // Shelter allocation
+  allocateShelter: async (inputData) => {
+    const response = await fetch(`${API_BASE_URL}/shelter/allocate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(inputData)
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
+
+  // Get allocation by applicant ID
+  getAllocation: async (applicantId) => {
+    const response = await fetch(`${API_BASE_URL}/shelter/allocation/${applicantId}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
+
+  // Get system stats
+  getStats: async () => {
+    const response = await fetch(`${API_BASE_URL}/shelter/stats`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
+
+  // Get model status
+  getModelStatus: async () => {
+    const response = await fetch(`${API_BASE_URL}/shelter/model-status`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
+
+  // Test prediction
+  testPrediction: async (applicantData) => {
+    const response = await fetch(`${API_BASE_URL}/shelter/test-prediction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(applicantData)
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  }
+};
+
 // Utility function for error handling
 export const handleApiError = (error) => {
   console.error('API Error:', error);

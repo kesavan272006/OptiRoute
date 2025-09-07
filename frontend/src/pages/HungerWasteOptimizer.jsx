@@ -326,7 +326,7 @@ const HungerWasteOptimizer = () => {
               AI Driven Hunger and Waste Optimizer
             </Typography>
             <Typography variant="h6" sx={{ 
-              color: 'rgba(255, 255, 255, 0.8)',
+              color: 'rgba(75, 75, 75, 0.8)',
               fontWeight: 400,
               maxWidth: '600px',
               mx: 'auto',
@@ -419,7 +419,7 @@ const HungerWasteOptimizer = () => {
                   gradient="linear-gradient(135deg, rgba(10, 25, 41, 0.9) 0%, rgba(39, 62, 107, 0.8) 100%)"
                 >
                   <Typography variant="body2" sx={{ 
-                    color: 'rgba(255,255,255,0.9)', 
+                    color: 'rgba(65, 108, 116, 0.9)', 
                     lineHeight: 1.6,
                     fontFamily: 'Poppins'
                   }}>
@@ -440,7 +440,7 @@ const HungerWasteOptimizer = () => {
                   gradient="linear-gradient(135deg, rgba(10, 25, 41, 0.9) 0%, rgba(39, 62, 107, 0.8) 100%)"
                 >
                   <Typography variant="body2" sx={{ 
-                    color: 'rgba(255,255,255,0.9)', 
+                    color: 'rgba(48, 77, 138, 0.9)', 
                     lineHeight: 1.6,
                     fontFamily: 'Poppins'
                   }}>
@@ -461,7 +461,7 @@ const HungerWasteOptimizer = () => {
                   gradient="linear-gradient(135deg, rgba(10, 25, 41, 0.9) 0%, rgba(39, 62, 107, 0.8) 100%)"
                 >
                   <Typography variant="body2" sx={{ 
-                    color: 'rgba(255,255,255,0.9)', 
+                    color: 'rgba(40, 63, 137, 0.9)', 
                     lineHeight: 1.6,
                     fontFamily: 'Poppins'
                   }}>
@@ -482,7 +482,7 @@ const HungerWasteOptimizer = () => {
                   gradient="linear-gradient(135deg, rgba(10, 25, 41, 0.9) 0%, rgba(39, 62, 107, 0.8) 100%)"
                 >
                   <Typography variant="body2" sx={{ 
-                    color: 'rgba(255,255,255,0.9)', 
+                    color: 'rgba(83, 46, 141, 0.9)', 
                     lineHeight: 1.6,
                     fontFamily: 'Poppins'
                   }}>
@@ -1049,51 +1049,51 @@ const HungerWasteOptimizer = () => {
           {/* Generated Plan Results */}
           {generatedPlan && (
             <Box sx={{ mt: 3 }}>
-              <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
+              <Typography variant="h6" sx={{ mb: 2, color: '#1976d2' }}>
                 AI-Generated Allocation Plan:
               </Typography>
               
               <Paper sx={{ p: 2, mb: 2, backgroundColor: '#f5f5f5' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: '#1976d2' }}>
                   Allocation Plan:
                 </Typography>
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#263238' }}>
                   {generatedPlan.allocation_plan}
                 </Typography>
               </Paper>
 
               <Paper sx={{ p: 2, mb: 2, backgroundColor: '#e3f2fd' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: '#1976d2' }}>
                   Human Summary:
                 </Typography>
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#263238' }}>
                   {generatedPlan.human_summary}
                 </Typography>
               </Paper>
 
               {generatedPlan.estimated_impact && (
                 <Paper sx={{ p: 2, backgroundColor: '#e8f5e8' }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: '#1976d2' }}>
                     Estimated Impact:
                   </Typography>
                   <Grid container spacing={1}>
                     <Grid item xs={6} sm={3}>
-                      <Typography variant="body2">
+                      <Typography variant="body2" sx={{ color: '#263238' }}>
                         <strong>People Served:</strong> {generatedPlan.estimated_impact.people_served}
                       </Typography>
                     </Grid>
                     <Grid item xs={6} sm={3}>
-                      <Typography variant="body2">
+                      <Typography variant="body2" sx={{ color: '#263238' }}>
                         <strong>Food Saved:</strong> {generatedPlan.estimated_impact.food_saved_kg}kg
                       </Typography>
                     </Grid>
                     <Grid item xs={6} sm={3}>
-                      <Typography variant="body2">
+                      <Typography variant="body2" sx={{ color: '#263238' }}>
                         <strong>Economic Value:</strong> ₹{generatedPlan.estimated_impact.economic_value_rupees}
                       </Typography>
                     </Grid>
                     <Grid item xs={6} sm={3}>
-                      <Typography variant="body2">
+                      <Typography variant="body2" sx={{ color: '#263238' }}>
                         <strong>Emissions Saved:</strong> {generatedPlan.estimated_impact.emissions_saved_kg}kg CO2
                       </Typography>
                     </Grid>
