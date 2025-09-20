@@ -110,6 +110,14 @@ const DynamicRoleDashboard = () => {
 const DefaultUserDashboard = ({ user }) => {
   const mainFeatures = [
     {
+      title: 'Smart Shelter Allocation',
+      subtitle: 'AI-powered housing allocation system',
+      icon: <HomeIcon sx={{ fontSize: 28 }} />,
+      route: '/shelter-allocation',
+      description: 'Forecast demand, dynamically allocate units, prioritize needs, and optimize impact',
+      gradient: 'linear-gradient(135deg, rgba(10, 25, 41, 0.9) 0%, rgba(39, 62, 107, 0.8) 100%)'
+    },
+    {
       title: 'Hospital Resource Optimizer',
       subtitle: 'AI-driven hospital resource management',
       icon: <HospitalIcon sx={{ fontSize: 28 }} />,
@@ -133,14 +141,6 @@ const DefaultUserDashboard = ({ user }) => {
       description: 'Forecast demand, match surplus to need, optimize perishables, and maximize impact',
       gradient: 'linear-gradient(135deg, rgba(10, 25, 41, 0.9) 0%, rgba(39, 62, 107, 0.8) 100%)'
     },
-    {
-      title: 'Smart Shelter Allocation',
-      subtitle: 'AI-powered housing allocation system',
-      icon: <HomeIcon sx={{ fontSize: 28 }} />,
-      route: '/shelter-allocation',
-      description: 'Forecast demand, dynamically allocate units, prioritize needs, and optimize impact',
-      gradient: 'linear-gradient(135deg, rgba(10, 25, 41, 0.9) 0%, rgba(39, 62, 107, 0.8) 100%)'
-    }
   ];
 
   return (

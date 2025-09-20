@@ -2,9 +2,10 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
     signInWithGoogle, 
      createUserDocument,
-    database 
+    database, 
+    auth
   } from '../config/firebase';
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const AuthContext = createContext();
@@ -151,7 +152,7 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: 'Registration failed. Please try again.' };
     }
   };
-
+  const signOutUser = () => signOut(auth);
   const logout = async () => {
     try {
       await signOutUser();

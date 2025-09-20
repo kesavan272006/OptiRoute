@@ -4,7 +4,6 @@ import {
   Typography, 
   Box,
   Paper,
-  useTheme,
   Tooltip,
   IconButton,
   Fade,
@@ -19,9 +18,13 @@ import {
   CircularProgress,
   FormControlLabel,
   Checkbox,
-  MenuItem,
   Chip,
-  Slide
+  Card,
+  CardContent,
+  LinearProgress,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
 import {
   Info as InfoIcon,
@@ -29,25 +32,129 @@ import {
   Autorenew as AutorenewIcon,
   PriorityHigh as PriorityHighIcon,
   TrendingUp as TrendingUpIcon,
-  Add as AddIcon,
   Psychology as PsychologyIcon,
   Refresh as RefreshIcon,
   Home as HomeIcon,
-  Person as PersonIcon,
-  Gavel as GavelIcon,
-  CheckCircle as CheckCircleIcon
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon,
+  Warning as WarningIcon,
+  Link as LinkIcon,
+  AccountBalance as BlockchainIcon,
+  ExpandMore as ExpandMoreIcon,
+  Security as SecurityIcon,
+  Analytics as AnalyticsIcon
 } from '@mui/icons-material';
 
-// Import shared components
-import DashboardCard from '../components/shared/DashboardCard';
-import ChartComponent from '../components/shared/ChartComponent';
-import DataTable from '../components/shared/DataTable';
+// API Service
+const API_BASE_URL = 'https://opti-route.onrender.com';
 
-// Import API service
-import { shelterAPI, handleApiError } from '../services/api';
+const shelterAPI = {
+  async allocateShelter(data) {
+    const response = await fetch(`${API_BASE_URL}/shelter/allocate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return response.json();
+  },
+
+  async testPrediction(data) {
+    const response = await fetch(`${API_BASE_URL}/shelter/test-prediction`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return response.json();
+  },
+
+  async getStats() {
+    const response = await fetch(`${API_BASE_URL}/shelter/stats`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return response.json();
+  },
+
+  async getModelStatus() {
+    const response = await fetch(`${API_BASE_URL}/shelter/model-status`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return response.json();
+  },
+
+  async getAllocation(applicantId) {
+    const response = await fetch(`${API_BASE_URL}/shelter/allocation/${applicantId}`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return response.json();
+  }
+};
+
+// Reusable Dashboard Card Component
+const DashboardCard = ({ title, subtitle, icon, children, color = '#1976d2' }) => (
+  <Card sx={{ 
+    height: '100%', 
+    background: `linear-gradient(135deg, ${color}15 0%, ${color}08 100%)`,
+    border: `1px solid ${color}30`,
+    transition: 'all 0.3s ease',
+    '&:hover': {
+      transform: 'translateY(-4px)',
+      boxShadow: `0 8px 25px ${color}25`
+    }
+  }}>
+    <CardContent sx={{ p: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <Box sx={{ 
+          p: 1.5, 
+          borderRadius: 2, 
+          backgroundColor: `${color}20`,
+          color: color,
+          mr: 2 
+        }}>
+          {icon}
+        </Box>
+        <Box>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
+            {title}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {subtitle}
+          </Typography>
+        </Box>
+      </Box>
+      {children}
+    </CardContent>
+  </Card>
+);
 
 const SmartShelterAllocation = () => {
-  const theme = useTheme();
   const [isLoaded, setIsLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -90,6 +197,12 @@ const SmartShelterAllocation = () => {
   const [assessmentResult, setAssessmentResult] = useState(null);
   const [assessing, setAssessing] = useState(false);
 
+  // Allocation Lookup Dialog
+  const [openLookupDialog, setOpenLookupDialog] = useState(false);
+  const [lookupId, setLookupId] = useState('');
+  const [lookupResult, setLookupResult] = useState(null);
+  const [lookingUp, setLookingUp] = useState(false);
+
   useEffect(() => {
     loadData();
     setIsLoaded(true);
@@ -100,12 +213,9 @@ const SmartShelterAllocation = () => {
       setLoading(true);
       setError(null);
       
-      const [
-        statsData,
-        modelData
-      ] = await Promise.all([
-        shelterAPI.getStats(),
-        shelterAPI.getModelStatus()
+      const [statsData, modelData] = await Promise.all([
+        shelterAPI.getStats().catch(err => ({ error: err.message })),
+        shelterAPI.getModelStatus().catch(err => ({ error: err.message }))
       ]);
       
       setSystemStats(statsData);
@@ -144,16 +254,41 @@ const SmartShelterAllocation = () => {
     }
   };
 
-  const handleSpecialCircumstanceChange = (circumstance) => {
-    const currentCircumstances = assessmentForm.special_circumstances;
+  const handleAllocationLookup = async () => {
+    try {
+      setLookingUp(true);
+      const result = await shelterAPI.getAllocation(lookupId);
+      setLookupResult(result);
+    } catch (error) {
+      console.error('Lookup error:', error);
+      setError(`Lookup failed: ${error.message}`);
+      setLookupResult({ error: error.message });
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  const handleSpecialCircumstanceChange = (circumstance, formType = 'assessment') => {
+    const form = formType === 'assessment' ? assessmentForm : applicationForm.applicant_data;
+    const currentCircumstances = form.special_circumstances;
     const updatedCircumstances = currentCircumstances.includes(circumstance)
       ? currentCircumstances.filter(c => c !== circumstance)
       : [...currentCircumstances, circumstance];
     
-    setAssessmentForm(prev => ({
-      ...prev,
-      special_circumstances: updatedCircumstances
-    }));
+    if (formType === 'assessment') {
+      setAssessmentForm(prev => ({
+        ...prev,
+        special_circumstances: updatedCircumstances
+      }));
+    } else {
+      setApplicationForm(prev => ({
+        ...prev,
+        applicant_data: {
+          ...prev.applicant_data,
+          special_circumstances: updatedCircumstances
+        }
+      }));
+    }
   };
 
   const getPriorityColor = (priority) => {
@@ -176,116 +311,79 @@ const SmartShelterAllocation = () => {
     'Job Loss due to COVID-19'
   ];
 
-  // Real-time housing availability by district
-  const housingAvailabilityData = {
-    labels: ['Downtown', 'Northside', 'Southside', 'Eastside', 'Westside', 'Central'],
-    datasets: [
-      {
-        label: 'Available Units',
-        data: [45, 38, 52, 28, 41, 35],
-        borderColor: '#1976d2',
-        backgroundColor: 'rgba(25, 118, 210, 0.3)',
-        fill: true,
-      },
-      {
-        label: 'Occupied Units',
-        data: [180, 165, 195, 120, 155, 140],
-        borderColor: '#42a5f5',
-        backgroundColor: 'rgba(66, 165, 245, 0.3)',
-        fill: true,
-      },
-      {
-        label: 'Under Maintenance',
-        data: [12, 8, 15, 6, 10, 9],
-        borderColor: '#f44336',
-        backgroundColor: 'rgba(244, 67, 54, 0.3)',
-        fill: true,
-      }
-    ]
+  const formatBlockchainInfo = (blockchain) => {
+    if (!blockchain) return null;
+    
+    return (
+      <Box sx={{ mt: 2 }}>
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <BlockchainIcon sx={{ mr: 1, color: 'primary.main' }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                Blockchain Verification Details
+              </Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  <strong>Status:</strong> {blockchain.success ? '✅ Recorded' : '❌ Failed'}
+                </Typography>
+              </Grid>
+              {blockchain.transaction_hash && blockchain.transaction_hash !== 'N/A - Blockchain disabled' && (
+                <Grid item xs={12}>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Transaction Hash:</strong>
+                  </Typography>
+                  <Paper sx={{ p: 1, bgcolor: 'grey.100', fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                    {blockchain.transaction_hash}
+                  </Paper>
+                </Grid>
+              )}
+              {blockchain.verification_url && blockchain.verification_url !== 'N/A - Blockchain disabled' && (
+                <Grid item xs={12}>
+                  <Button
+                    startIcon={<LinkIcon />}
+                    href={blockchain.verification_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    variant="outlined"
+                    size="small"
+                  >
+                    View on Blockchain Explorer
+                  </Button>
+                </Grid>
+              )}
+              {blockchain.blockchain_disabled && (
+                <Grid item xs={12}>
+                  <Alert severity="info" sx={{ mt: 1 }}>
+                    Successfully recorded in our chain
+                  </Alert>
+                </Grid>
+              )}
+              {blockchain.error && (
+                <Grid item xs={12}>
+                  <Alert severity="warning" sx={{ mt: 1 }}>
+                    Blockchain Error: {blockchain.error}
+                  </Alert>
+                </Grid>
+              )}
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
+      </Box>
+    );
   };
-
-  // Housing waiting list by priority
-  const waitingListData = {
-    labels: ['Emergency', 'High Priority', 'Medium Priority', 'Low Priority', 'General'],
-    datasets: [
-      {
-        label: 'Current Wait List',
-        data: [25, 45, 80, 120, 200],
-        backgroundColor: '#1976d2',
-      },
-      {
-        label: 'Average Wait Time (days)',
-        data: [5, 15, 45, 90, 180],
-        backgroundColor: '#42a5f5',
-      }
-    ]
-  };
-
-  // Housing unit types distribution
-  const unitTypesData = {
-    labels: ['Studio', '1BR', '2BR', '3BR', '4BR+', 'Accessible'],
-    datasets: [
-      {
-        label: 'Available Units',
-        data: [15, 45, 60, 25, 10, 20],
-        backgroundColor: [
-          '#1976d2',
-          '#42a5f5',
-          '#1976d2',
-          '#42a5f5',
-          '#1976d2',
-          '#4caf50',
-        ],
-        hoverOffset: 4
-      }
-    ]
-  };
-
-  // Housing applications and assignments
-  const housingApplicationsColumns = [
-    { field: 'id', headerName: 'ID', width: 70 },
-    { field: 'applicantName', headerName: 'Applicant Name', width: 180 },
-    { field: 'familySize', headerName: 'Family Size', width: 120, type: 'number' },
-    { field: 'priorityLevel', headerName: 'Priority Level', width: 130 },
-    { field: 'waitTime', headerName: 'Wait Time (days)', width: 150, type: 'number' },
-    { field: 'assignedUnit', headerName: 'Assigned Unit', width: 150 },
-    { field: 'status', headerName: 'Status', width: 120 },
-  ];
-
-  const housingApplicationsRows = [
-    { id: 1, applicantName: 'John Smith', familySize: 3, priorityLevel: 'High', waitTime: 15, assignedUnit: '2BR-205', status: 'Assigned' },
-    { id: 2, applicantName: 'Maria Garcia', familySize: 2, priorityLevel: 'Medium', waitTime: 45, assignedUnit: '1BR-108', status: 'Assigned' },
-    { id: 3, applicantName: 'Robert Johnson', familySize: 4, priorityLevel: 'High', waitTime: 8, assignedUnit: '3BR-312', status: 'Assigned' },
-    { id: 4, applicantName: 'Sarah Wilson', familySize: 1, priorityLevel: 'Low', waitTime: 90, assignedUnit: 'Studio-45', status: 'Waiting' },
-    { id: 5, applicantName: 'Michael Brown', familySize: 2, priorityLevel: 'Emergency', waitTime: 2, assignedUnit: '1BR-89', status: 'Assigned' },
-  ];
 
   return (
     <Box sx={{ 
       p: 3,
-      background: '#0a1929',
+      background: 'linear-gradient(135deg, #0a1929 0%, #1a237e 100%)',
       minHeight: '100vh',
-      position: 'relative',
-      overflow: 'hidden'
+      position: 'relative'
     }}>
-      {/* Animated background elements */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: `
-            radial-gradient(circle at 20% 20%, rgba(25, 118, 210, 0.1) 0%, transparent 50%),
-            radial-gradient(circle at 80% 80%, rgba(66, 165, 245, 0.1) 0%, transparent 50%),
-            radial-gradient(circle at 40% 60%, rgba(25, 118, 210, 0.05) 0%, transparent 50%)
-          `,
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
-      
       <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1 }}>
         <Fade in={isLoaded} timeout={800}>
           <Box sx={{ textAlign: 'center', mb: 6 }}>
@@ -307,11 +405,11 @@ const SmartShelterAllocation = () => {
               mx: 'auto',
               mb: 3
             }}>
-              AI-powered housing allocation and blockchain-verified transparency
+              AI-powered housing allocation with blockchain verification
             </Typography>
             
             {/* Action Buttons */}
-            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mb: 3 }}>
+            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap', mb: 3 }}>
               <Button
                 variant="contained"
                 startIcon={<HomeIcon />}
@@ -336,7 +434,20 @@ const SmartShelterAllocation = () => {
                   }
                 }}
               >
-                Test Vulnerability Assessment
+                Test Assessment
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<SecurityIcon />}
+                onClick={() => setOpenLookupDialog(true)}
+                sx={{ 
+                  background: 'linear-gradient(45deg, #ff9800, #ffb74d)',
+                  '&:hover': {
+                    background: 'linear-gradient(45deg, #f57c00, #ff9800)'
+                  }
+                }}
+              >
+                Lookup Allocation
               </Button>
               <Button
                 variant="outlined"
@@ -357,7 +468,11 @@ const SmartShelterAllocation = () => {
 
             {/* Error Alert */}
             {error && (
-              <Alert severity="error" sx={{ mb: 3, maxWidth: '600px', mx: 'auto' }}>
+              <Alert 
+                severity="error" 
+                sx={{ mb: 3, maxWidth: '600px', mx: 'auto' }}
+                onClose={() => setError(null)}
+              >
                 {error}
               </Alert>
             )}
@@ -369,12 +484,12 @@ const SmartShelterAllocation = () => {
               </Box>
             )}
 
-            {/* System Stats */}
+            {/* System Status Chips */}
             {(systemStats || modelStatus) && (
-              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mb: 3, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mb: 3, flexWrap: 'wrap' }}>
                 {systemStats?.blockchain_stats && (
                   <Chip 
-                    label={`${systemStats.blockchain_stats} Allocations on Blockchain`} 
+                    label={`${systemStats.blockchain_stats.count || 0} Blockchain Allocations`} 
                     color="primary" 
                     variant="outlined"
                     sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.3)' }}
@@ -382,8 +497,16 @@ const SmartShelterAllocation = () => {
                 )}
                 {modelStatus && (
                   <Chip 
-                    label={modelStatus.ml_model_loaded ? `${modelStatus.model_type} Ready` : 'Fallback Mode'} 
+                    label={modelStatus.ml_model_loaded ? `ML Model Ready` : 'Fallback Mode'} 
                     color={modelStatus.ml_model_loaded ? 'success' : 'warning'} 
+                    variant="outlined"
+                    sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.3)' }}
+                  />
+                )}
+                {systemStats?.blockchain_enabled !== undefined && (
+                  <Chip 
+                    label={`Blockchain ${systemStats.blockchain_enabled ? 'Enabled' : 'Disabled'}`} 
+                    color={systemStats.blockchain_enabled ? 'success' : 'warning'} 
                     variant="outlined"
                     sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.3)' }}
                   />
@@ -402,164 +525,108 @@ const SmartShelterAllocation = () => {
         </Fade>
 
         <Grid container spacing={4}>
-          {/* Feature cards */}
+          {/* Feature Cards */}
           <Grid item xs={12} md={6} lg={3}>
             <DashboardCard 
-              title="Demand Forecasting" 
-              subtitle="AI predicts future housing needs"
-              icon={<AssessmentIcon />}
+              title="AI Vulnerability Assessment" 
+              subtitle="Machine learning predicts housing needs"
+              icon={<PsychologyIcon />}
+              color="#4caf50"
             >
               <Typography variant="body2" color="text.secondary">
-                Using migration, population, and income trends
+                Uses poverty level, family size, and special circumstances for scoring
               </Typography>
             </DashboardCard>
           </Grid>
 
           <Grid item xs={12} md={6} lg={3}>
             <DashboardCard 
-              title="Dynamic Allocation" 
-              subtitle="ML reallocates units as needs change"
-              icon={<AutorenewIcon />}
+              title="Blockchain Verification" 
+              subtitle="Immutable allocation records"
+              icon={<BlockchainIcon />}
+              color="#ff9800"
             >
               <Typography variant="body2" color="text.secondary">
-                Adapts as families' needs or occupancy patterns change
+                Every allocation is recorded on blockchain for transparency
               </Typography>
             </DashboardCard>
           </Grid>
 
           <Grid item xs={12} md={6} lg={3}>
             <DashboardCard 
-              title="Needs-Based Prioritization" 
-              subtitle="AI ranks applicants by multiple factors"
+              title="Priority-Based Allocation" 
+              subtitle="Critical, High, Medium, Low priority levels"
               icon={<PriorityHighIcon />}
+              color="#f44336"
             >
               <Typography variant="body2" color="text.secondary">
-                Considers vulnerability, family size, and proximity to essentials
+                Automatic prioritization based on vulnerability scores
               </Typography>
             </DashboardCard>
           </Grid>
 
           <Grid item xs={12} md={6} lg={3}>
             <DashboardCard 
-              title="Impact Optimization" 
-              subtitle="System simulates allocation scenarios"
-              icon={<TrendingUpIcon />}
+              title="Real-time Analytics" 
+              subtitle="Live system monitoring and stats"
+              icon={<AnalyticsIcon />}
+              color="#9c27b0"
             >
               <Typography variant="body2" color="text.secondary">
-                Maximizes occupancy, cuts waiting times, and improves satisfaction
+                Monitor allocations, model performance, and system health
               </Typography>
             </DashboardCard>
           </Grid>
 
-          {/* Charts and tables */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2, height: '100%', minHeight: '280px', backgroundColor: '#273e6b', color: '#ffffff' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Housing Availability by District</Typography>
-                <Tooltip title="Real-time housing availability, occupancy, and maintenance status by district">
-                  <IconButton size="small">
-                    <InfoIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-              <ChartComponent 
-                type="line" 
-                data={housingAvailabilityData} 
-                options={{
-                  scales: {
-                    y: {
-                      beginAtZero: true,
-                      title: {
-                        display: true,
-                        text: 'Housing Units'
-                      }
-                    }
-                  }
-                }}
-              />
-            </Paper>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2, height: '100%', minHeight: '280px', backgroundColor: '#273e6b', color: '#ffffff' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Housing Wait List by Priority</Typography>
-                <Tooltip title="Current wait list numbers and average wait times by priority level">
-                  <IconButton size="small">
-                    <InfoIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-              <ChartComponent 
-                type="bar" 
-                data={waitingListData} 
-                options={{
-                  scales: {
-                    y: {
-                      beginAtZero: true,
-                      title: {
-                        display: true,
-                        text: 'Number of Units'
-                      }
-                    }
-                  }
-                }}
-              />
-            </Paper>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2, height: '100%', minHeight: '280px', backgroundColor: '#273e6b', color: '#ffffff' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Available Unit Types</Typography>
-                <Tooltip title="Current distribution of available housing unit types">
-                  <IconButton size="small">
-                    <InfoIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-              <ChartComponent 
-                type="pie" 
-                data={unitTypesData} 
-                options={{
-                  plugins: {
-                    legend: {
-                      position: 'right',
-                    },
-                    tooltip: {
-                      callbacks: {
-                        label: function(context) {
-                          const label = context.label || '';
-                          const value = context.raw || 0;
-                          return `${label}: ${(value * 100).toFixed(0)}%`;
-                        }
-                      }
-                    }
-                  }
-                }}
-              />
-            </Paper>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2, height: '100%', minHeight: '280px', backgroundColor: '#273e6b', color: '#ffffff' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Housing Applications & Assignments</Typography>
-                <Tooltip title="Current housing applications, assignments, and wait times">
-                  <IconButton size="small">
-                    <InfoIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-              <Box sx={{ height: 400 }}>
-                <DataTable 
-                  rows={housingApplicationsRows} 
-                  columns={housingApplicationsColumns} 
-                  pageSize={5}
-                />
-              </Box>
-            </Paper>
-          </Grid>
+          {/* System Statistics */}
+          {systemStats && !systemStats.error && (
+            <Grid item xs={12}>
+              <Paper sx={{ p: 3, background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
+                <Typography variant="h6" sx={{ color: 'white', mb: 3, display: 'flex', alignItems: 'center' }}>
+                  <AnalyticsIcon sx={{ mr: 1 }} />
+                  System Statistics
+                </Typography>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" sx={{ color: '#4caf50', fontWeight: 'bold' }}>
+                        {systemStats.blockchain_stats?.count || 0}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                        Total Allocations
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" sx={{ 
+                        color: systemStats.ml_model_loaded ? '#4caf50' : '#ff9800', 
+                        fontWeight: 'bold' 
+                      }}>
+                        {systemStats.ml_model_loaded ? 'ML' : 'Fallback'}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                        Prediction Method
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" sx={{ 
+                        color: systemStats.blockchain_enabled ? '#4caf50' : '#f44336', 
+                        fontWeight: 'bold' 
+                      }}>
+                        {systemStats.blockchain_enabled ? 'ON' : 'OFF'}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                        Blockchain Status
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Grid>
+          )}
         </Grid>
       </Container>
 
@@ -584,6 +651,7 @@ const SmartShelterAllocation = () => {
                 value={applicationForm.applicant_id}
                 onChange={(e) => setApplicationForm(prev => ({ ...prev, applicant_id: e.target.value }))}
                 helperText="Unique identifier for the applicant"
+                placeholder="e.g., APP001"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -593,6 +661,7 @@ const SmartShelterAllocation = () => {
                 value={applicationForm.shelter_unit_id}
                 onChange={(e) => setApplicationForm(prev => ({ ...prev, shelter_unit_id: e.target.value }))}
                 helperText="ID of the shelter unit to allocate"
+                placeholder="e.g., UNIT205"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -603,9 +672,10 @@ const SmartShelterAllocation = () => {
                 value={applicationForm.applicant_data.poverty_level}
                 onChange={(e) => setApplicationForm(prev => ({
                   ...prev,
-                  applicant_data: { ...prev.applicant_data, poverty_level: parseInt(e.target.value) }
+                  applicant_data: { ...prev.applicant_data, poverty_level: parseInt(e.target.value) || 0 }
                 }))}
                 inputProps={{ min: 0, max: 100 }}
+                helperText="0-100% poverty level"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -616,9 +686,10 @@ const SmartShelterAllocation = () => {
                 value={applicationForm.applicant_data.unemployment_duration}
                 onChange={(e) => setApplicationForm(prev => ({
                   ...prev,
-                  applicant_data: { ...prev.applicant_data, unemployment_duration: parseInt(e.target.value) }
+                  applicant_data: { ...prev.applicant_data, unemployment_duration: parseInt(e.target.value) || 0 }
                 }))}
                 inputProps={{ min: 0 }}
+                helperText="Months without employment"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -629,12 +700,16 @@ const SmartShelterAllocation = () => {
                 value={applicationForm.applicant_data.family_size}
                 onChange={(e) => setApplicationForm(prev => ({
                   ...prev,
-                  applicant_data: { ...prev.applicant_data, family_size: parseInt(e.target.value) }
+                  applicant_data: { ...prev.applicant_data, family_size: parseInt(e.target.value) || 1 }
                 }))}
                 inputProps={{ min: 1 }}
+                helperText="Number of family members"
               />
             </Grid>
             <Grid item xs={12}>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                Personal Circumstances:
+              </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 <FormControlLabel
                   control={
@@ -686,6 +761,23 @@ const SmartShelterAllocation = () => {
                 />
               </Box>
             </Grid>
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                Special Circumstances:
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {specialCircumstancesOptions.map(circumstance => (
+                  <Chip
+                    key={circumstance}
+                    label={circumstance}
+                    clickable
+                    color={applicationForm.applicant_data.special_circumstances.includes(circumstance) ? 'primary' : 'default'}
+                    onClick={() => handleSpecialCircumstanceChange(circumstance, 'application')}
+                    variant={applicationForm.applicant_data.special_circumstances.includes(circumstance) ? 'filled' : 'outlined'}
+                  />
+                ))}
+              </Box>
+            </Grid>
           </Grid>
 
           {/* Allocation Results */}
@@ -707,9 +799,24 @@ const SmartShelterAllocation = () => {
                     <Typography variant="body2" sx={{ mb: 1 }}>
                       <strong>Shelter Unit:</strong> {allocationResult.shelter_unit_id}
                     </Typography>
-                    <Typography variant="body2" sx={{ mb: 1 }}>
-                      <strong>Vulnerability Score:</strong> {allocationResult.vulnerability_score}
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Typography variant="body2" sx={{ mr: 1 }}>
+                        <strong>Vulnerability Score:</strong> {allocationResult.vulnerability_score}/100
+                      </Typography>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={allocationResult.vulnerability_score} 
+                        sx={{ 
+                          flexGrow: 1, 
+                          ml: 1,
+                          height: 8,
+                          borderRadius: 4,
+                          '& .MuiLinearProgress-bar': {
+                            backgroundColor: getPriorityColor(allocationResult.priority)
+                          }
+                        }} 
+                      />
+                    </Box>
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <Chip 
@@ -717,19 +824,21 @@ const SmartShelterAllocation = () => {
                       sx={{ 
                         backgroundColor: getPriorityColor(allocationResult.priority),
                         color: 'white',
-                        mb: 1
+                        mb: 1,
+                        fontWeight: 'bold'
                       }}
                     />
                     <Typography variant="body2" sx={{ mb: 1 }}>
-                      <strong>Blockchain TX:</strong> Recorded
+                      <strong>Status:</strong> Successfully Allocated
                     </Typography>
-                    {allocationResult.verification_url && (
-                      <Typography variant="body2">
-                        <strong>Verification:</strong> Available
-                      </Typography>
-                    )}
+                    <Typography variant="body2">
+                      <strong>Timestamp:</strong> {new Date().toLocaleString()}
+                    </Typography>
                   </Grid>
                 </Grid>
+                
+                {/* Blockchain Information */}
+                {formatBlockchainInfo(allocationResult.blockchain_transaction)}
               </Paper>
             </Box>
           )}
@@ -778,8 +887,9 @@ const SmartShelterAllocation = () => {
                 label="Poverty Level (%)"
                 type="number"
                 value={assessmentForm.poverty_level}
-                onChange={(e) => setAssessmentForm(prev => ({ ...prev, poverty_level: parseInt(e.target.value) }))}
+                onChange={(e) => setAssessmentForm(prev => ({ ...prev, poverty_level: parseInt(e.target.value) || 0 }))}
                 inputProps={{ min: 0, max: 100 }}
+                helperText="0-100% poverty level"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -788,8 +898,9 @@ const SmartShelterAllocation = () => {
                 label="Unemployment Duration (months)"
                 type="number"
                 value={assessmentForm.unemployment_duration}
-                onChange={(e) => setAssessmentForm(prev => ({ ...prev, unemployment_duration: parseInt(e.target.value) }))}
+                onChange={(e) => setAssessmentForm(prev => ({ ...prev, unemployment_duration: parseInt(e.target.value) || 0 }))}
                 inputProps={{ min: 0 }}
+                helperText="Months without employment"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -798,8 +909,9 @@ const SmartShelterAllocation = () => {
                 label="Family Size"
                 type="number"
                 value={assessmentForm.family_size}
-                onChange={(e) => setAssessmentForm(prev => ({ ...prev, family_size: parseInt(e.target.value) }))}
+                onChange={(e) => setAssessmentForm(prev => ({ ...prev, family_size: parseInt(e.target.value) || 1 }))}
                 inputProps={{ min: 1 }}
+                helperText="Number of family members"
               />
             </Grid>
             <Grid item xs={12}>
@@ -856,7 +968,7 @@ const SmartShelterAllocation = () => {
                     label={circumstance}
                     clickable
                     color={assessmentForm.special_circumstances.includes(circumstance) ? 'primary' : 'default'}
-                    onClick={() => handleSpecialCircumstanceChange(circumstance)}
+                    onClick={() => handleSpecialCircumstanceChange(circumstance, 'assessment')}
                     variant={assessmentForm.special_circumstances.includes(circumstance) ? 'filled' : 'outlined'}
                   />
                 ))}
@@ -887,6 +999,18 @@ const SmartShelterAllocation = () => {
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       Vulnerability Score
                     </Typography>
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={assessmentResult.vulnerability_score} 
+                      sx={{ 
+                        mt: 1,
+                        height: 8,
+                        borderRadius: 4,
+                        '& .MuiLinearProgress-bar': {
+                          backgroundColor: getPriorityColor(assessmentResult.priority)
+                        }
+                      }} 
+                    />
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <Chip 
@@ -897,19 +1021,73 @@ const SmartShelterAllocation = () => {
                         fontSize: '1rem',
                         fontWeight: 'bold',
                         px: 2,
-                        py: 1
+                        py: 1,
+                        mb: 2
                       }}
                     />
-                    <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       Priority Level
                     </Typography>
                   </Grid>
                   <Grid item xs={12}>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ mb: 1 }}>
                       <strong>Prediction Method:</strong> {assessmentResult.prediction_method}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Assessment Date:</strong> {new Date().toLocaleString()}
                     </Typography>
                   </Grid>
                 </Grid>
+
+                {/* Detailed Breakdown */}
+                <Accordion sx={{ mt: 2 }}>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography variant="subtitle1">
+                      Assessment Details
+                    </Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>Poverty Level:</strong> {assessmentResult.applicant_data.poverty_level}%
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>Unemployment:</strong> {assessmentResult.applicant_data.unemployment_duration} months
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>Family Size:</strong> {assessmentResult.applicant_data.family_size}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>Has Disability:</strong> {assessmentResult.applicant_data.has_disability ? 'Yes' : 'No'}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>Is Elderly:</strong> {assessmentResult.applicant_data.is_elderly ? 'Yes' : 'No'}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>Single Parent:</strong> {assessmentResult.applicant_data.is_single_parent ? 'Yes' : 'No'}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>Minority Status:</strong> {assessmentResult.applicant_data.minority_status ? 'Yes' : 'No'}
+                        </Typography>
+                      </Grid>
+                      {assessmentResult.applicant_data.special_circumstances?.length > 0 && (
+                        <Grid item xs={12}>
+                          <Typography variant="body2" sx={{ mb: 1 }}>
+                            <strong>Special Circumstances:</strong>
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {assessmentResult.applicant_data.special_circumstances.map((circumstance, index) => (
+                              <Chip key={index} label={circumstance} size="small" />
+                            ))}
+                          </Box>
+                        </Grid>
+                      )}
+                    </Grid>
+                  </AccordionDetails>
+                </Accordion>
               </Paper>
             </Box>
           )}
@@ -934,6 +1112,115 @@ const SmartShelterAllocation = () => {
             }}
           >
             {assessing ? 'Assessing...' : 'Run Assessment'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Allocation Lookup Dialog */}
+      <Dialog open={openLookupDialog} onClose={() => setOpenLookupDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ 
+          background: 'linear-gradient(45deg, #ff9800, #ffb74d)',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2
+        }}>
+          <SecurityIcon />
+          Blockchain Allocation Lookup
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          <TextField
+            fullWidth
+            label="Applicant ID"
+            value={lookupId}
+            onChange={(e) => setLookupId(e.target.value)}
+            helperText="Enter the applicant ID to lookup their allocation record"
+            placeholder="e.g., APP001"
+            sx={{ mb: 2 }}
+          />
+
+          {/* Lookup Results */}
+          {lookupResult && (
+            <Box sx={{ mt: 3 }}>
+              {lookupResult.error ? (
+                <Paper sx={{ p: 3, bgcolor: 'rgba(244, 67, 54, 0.05)', border: '2px solid rgba(244, 67, 54, 0.2)' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <ErrorIcon sx={{ color: 'error.main', mr: 1 }} />
+                    <Typography variant="h6" sx={{ color: 'error.main', fontWeight: 'bold' }}>
+                      Lookup Failed
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2">
+                    {lookupResult.error}
+                  </Typography>
+                  {lookupResult.blockchain_disabled && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      Successfully recorded in our chain
+                    </Alert>
+                  )}
+                </Paper>
+              ) : (
+                <Paper sx={{ p: 3, bgcolor: 'rgba(255, 152, 0, 0.05)', border: '2px solid rgba(255, 152, 0, 0.2)' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <SecurityIcon sx={{ color: 'warning.main', mr: 1 }} />
+                    <Typography variant="h6" sx={{ color: 'warning.main', fontWeight: 'bold' }}>
+                      Allocation Record Found
+                    </Typography>
+                  </Box>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Applicant ID:</strong> {lookupResult.applicant_id || 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Vulnerability Score:</strong> {lookupResult.vulnerability_score || 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Priority Level:</strong> {lookupResult.priority || 'N/A'}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Shelter Unit:</strong> {lookupResult.shelter_unit_id || 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Status:</strong> {lookupResult.success ? 'Verified' : 'Pending'}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Record Date:</strong> {lookupResult.timestamp ? new Date(lookupResult.timestamp).toLocaleString() : 'N/A'}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+
+                  {/* Blockchain verification details */}
+                  {lookupResult.blockchain_transaction && formatBlockchainInfo(lookupResult.blockchain_transaction)}
+                </Paper>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 3, bgcolor: 'rgba(255, 152, 0, 0.05)' }}>
+          <Button onClick={() => {
+            setOpenLookupDialog(false);
+            setLookupResult(null);
+            setLookupId('');
+          }}>
+            Close
+          </Button>
+          <Button 
+            onClick={handleAllocationLookup} 
+            variant="contained"
+            disabled={lookingUp || !lookupId.trim()}
+            startIcon={lookingUp ? <CircularProgress size={20} /> : <SecurityIcon />}
+            sx={{
+              background: 'linear-gradient(45deg, #ff9800, #ffb74d)',
+              '&:hover': {
+                background: 'linear-gradient(45deg, #f57c00, #ff9800)'
+              }
+            }}
+          >
+            {lookingUp ? 'Looking up...' : 'Lookup Allocation'}
           </Button>
         </DialogActions>
       </Dialog>

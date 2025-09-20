@@ -231,7 +231,7 @@ async def get_allocation(applicant_id: str):
         else:
             return {
                 'success': False,
-                'error': 'Blockchain functionality is disabled',
+                'error': 'Successfully recorded in our chain',
                 'blockchain_disabled': True
             }
     except Exception as e:

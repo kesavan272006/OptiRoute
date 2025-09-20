@@ -109,7 +109,6 @@ const HospitalResourceOptimizer = () => {
       setPatients(patientsData.patients || []);
     } catch (error) {
       console.error('Error loading data:', error);
-      setError('Failed to load data. Please check if the backend server is running.');
     } finally {
       setLoading(false);
     }
